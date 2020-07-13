@@ -1,10 +1,10 @@
 #
 # Slices Dispatcher
 #
-# Version: 1.0
+# Version: 1.0.1
 #
 # Changelog:
-#
+    #   v1.0.1:
 #
 #
 #
@@ -24,7 +24,7 @@ case_numbers = 0
 sum_all_samples = 0
 average_samples = 0
 
-FLUCTUATION_RANGE = 15
+fluctuation_range = 15
 
 
 def load_slices_data(filename):
@@ -135,7 +135,7 @@ def left_move_segment(dispatched_table, slices_data_table_sorted,  deep):
     s = 0
     while True:
         next_case_samples = slices_data_table_sorted[down_table_index][1]
-        if s + next_case_samples > FLUCTUATION_RANGE or down_table_index >= case_numbers:
+        if s + next_case_samples > fluctuation_range or down_table_index >= case_numbers:
             break
         else:
             s += next_case_samples
@@ -170,7 +170,7 @@ def right_move_segment(dispatched_table, slices_data_table_sorted, deep):
 
     while True:
         next_case_samples = slices_data_table_sorted[up_table_index][1]
-        if s + next_case_samples > FLUCTUATION_RANGE or up_table_index <= 0:
+        if s + next_case_samples > fluctuation_range or up_table_index <= 0:
             break
         else:
             s += next_case_samples
@@ -230,12 +230,15 @@ def dispatcher_simple(slices_data_table):
                                      slices_data_table_sorted, \
                                      0)
 
+    res = []
+
     for d in dispatched_table:
         start_case = slices_data_table_sorted[d[1]]
         end_case = slices_data_table_sorted[d[2]]
-        print([start_case[0], end_case[0]], d[0])
+        # print([start_case[0], end_case[0]], d[0])
+        res.append([start_case[0], end_case[0], d[0]])
 
-    print(get_deviation(dispatched_table))
+    return (get_deviation(dispatched_table)), res
 
 # stretegy 2
 def dispatcher(slices_data_table):
@@ -354,4 +357,21 @@ if __name__ == "__main__":
     # print(slices_data_table)
     # dispatch_demo_test(slices_data_table)
     # dispatcher(slices_data_table)
-    dispatcher_simple(slices_data_table)
+
+    min_deviation = 1000000000
+    min_dispatched_table = []
+
+    for i in range(1, 20):
+        fluctuation_range = i
+        d, t = dispatcher_simple(slices_data_table)
+        print("fluctuation_range: ", fluctuation_range)
+        print("deviation: ", d)
+        print("------------------")
+        if d < min_deviation:
+            min_deviation = d
+            min_dispatched_table = t
+
+    for item in min_dispatched_table:
+        print([item[0], item[1]], item[2])
+    print(min_deviation)
+
