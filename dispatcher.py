@@ -6,7 +6,7 @@
 # Version: 1.0.1
 #
 # Changelog:
-    #   v1.0.1:
+#   v1.0.1:
 #
 #
 #
@@ -17,17 +17,17 @@
 import copy
 import sys
 
-DOCDORS = 8
+DOCDORS = 11
 SLICES_DATA_FILE = "slices.txt"
 
 slices_data_table = {}
-# slices_data_table_sorted = []
 case_numbers = 0
 sum_all_samples = 0
 average_samples = 0
 
-fluctuation_range = 15
+fluctuation_range = 20
 
+DEVIATION_RANGE = 5
 
 def load_slices_data(filename):
 
@@ -83,7 +83,8 @@ def sum_segment(start, end, slices_data_table_sorted):
     return s
 
 
-def get_initial_dispatched_table(slices_data_table_sorted, case_numbers, average_samples):
+def get_initial_dispatched_table(slices_data_table_sorted, case_numbers,
+                                 average_samples):
     dispatched_table = []
     up_index = 0
     down_index = 0
@@ -137,7 +138,8 @@ def left_move_segment(dispatched_table, slices_data_table_sorted,  deep):
     s = 0
     while True:
         next_case_samples = slices_data_table_sorted[down_table_index][1]
-        if s + next_case_samples > fluctuation_range or down_table_index >= case_numbers:
+        if s + next_case_samples > fluctuation_range or \
+           down_table_index >= case_numbers:
             break
         else:
             s += next_case_samples
@@ -193,7 +195,8 @@ def right_move_segment(dispatched_table, slices_data_table_sorted, deep):
     return dispatched_table
 
 
-def search_by_dfs(min_dispatched_table, dispatched_table, slices_data_table_sorted, deep):
+def search_by_dfs(min_dispatched_table, dispatched_table,
+                  slices_data_table_sorted, deep):
     if deep == DOCDORS - 1:
         deviation_new = get_deviation(dispatched_table)
         deviation_min = get_deviation(min_dispatched_table)
@@ -227,9 +230,9 @@ def dispatcher_simple(slices_data_table):
     # print(slices_data_table_sorted)
 
     # search by DFS to get much better choise.
-    dispatched_table = search_by_dfs(new_dispatched_table, \
-                                     min_dispatched_table, \
-                                     slices_data_table_sorted, \
+    dispatched_table = search_by_dfs(new_dispatched_table,
+                                     min_dispatched_table,
+                                     slices_data_table_sorted,
                                      0)
 
     res = []
@@ -242,7 +245,7 @@ def dispatcher_simple(slices_data_table):
 
     return (get_deviation(dispatched_table)), res
 
-# stretegy 2
+# Strategy 2
 def dispatcher(slices_data_table):
     sorted_table_by_value = sorted(slices_data_table.items(), key=lambda d:d[1], reverse=True)
     sorted_table_by_key = sorted(slices_data_table.items(), key=lambda d:d[0], reverse=False)
@@ -257,7 +260,6 @@ def dispatcher(slices_data_table):
         dispatch_result.append({})
 
     # print(average_samples, case_numbers, dispatch_result)
-
 
     # print(sorted_table_by_key)
 
@@ -341,6 +343,131 @@ def dispatch_demo_test(slices_data_table):
         print(s)
 
 
+# Strategy 3
+def do_strategy3(slices_sorted_by_value, average):
+
+    #
+    def find_next_item(slices_sorted_by_value, distance):
+        goal_item = None
+        # low_item = None
+        # high_item = None
+
+        for item in slices_sorted_by_value:
+            if item[1] < distance:
+                goal_item = item
+                break
+            elif abs(item[1] - distance) < DEVIATION_RANGE:
+                goal_item = item
+            else:
+                pass
+
+        # print("find_next_item: ", distance, goal_item)
+
+        return goal_item
+
+    group_index = 0
+    result_table = []
+
+    while group_index < DOCDORS and slices_sorted_by_value:
+        g = []
+        g_sum = 0
+
+
+        while True:
+
+            distance = average - g_sum
+
+            if abs(distance) < 1:
+                if g_sum == 0:  # empty table
+                    item = slices_sorted_by_value[0]
+                else:
+                    item = None
+            else:
+                item = find_next_item(slices_sorted_by_value, distance)
+            if item:
+                g.append(item[0])
+                g_sum += item[1]
+                slices_sorted_by_value.remove(item)
+            else:
+                break
+
+        group_index += 1
+        result_table.append([g, g_sum])
+
+    while group_index < DOCDORS:
+        result_table.append([[], 0])
+        group_index += 1
+
+    return result_table, slices_sorted_by_value
+
+
+def merge_dispatch_table(old, nex):
+    new = []
+    if not old:
+        for item in nex:
+            new.append(item)
+
+    if not nex:
+        for item in old:
+            new.append(item)
+
+    if old and nex:
+        for i in range(0, DOCDORS):
+            item_old = old[i]
+            item_nex = nex[i]
+            item_new = []
+            item_new.append(item_old[0] + item_nex[0])
+            item_new.append(item_old[1] + item_nex[1])
+            new.append(item_new)
+    else:
+        pass
+
+    return new
+
+
+def strategy3(slices_sorted_by_value):
+
+    dispatched_table = []
+
+    while slices_sorted_by_value:
+        length = len(slices_sorted_by_value)
+        sum_samples = sum_segment(0, length-1, slices_sorted_by_value)
+        average = sum_samples / DOCDORS
+
+        # print("-----------------")
+        # print(slices_sorted_by_value)
+        # print("AVERAGE: ", average)
+
+        dt, slices_sorted_by_value = do_strategy3(slices_sorted_by_value,
+                                                      average)
+        # print("dt: ", dt)
+        dispatched_table = merge_dispatch_table(dispatched_table, dt)
+
+    return dispatched_table
+
+
+# [G1, G2,  G3, ...]
+# G1: [[q1, q2, ...], sum]
+def print_result(dispatched_table_list, average):
+    # print("length: ", len(dispatched_table_list))
+    for g in dispatched_table_list:
+        # print("g: ", g)
+        slice_item_g = sorted(g[0])
+        sum_g = g[1]
+        deviation_g = sum_g - average
+
+        print("[", end='')
+        for q in slice_item_g:
+            if len(q) == 1:
+                print("{0}, ".format(q[0]), end='')
+            elif len(q) == 2:
+                print("({0}=>{1}, )".format(q[0], q[1]), end='')
+            else:
+                print("{0}, ".format(q), end='')
+
+        print("]", end=' ')
+        print("{0} ({1:.2f})".format(sum_g, deviation_g))
+
 
 if __name__ == "__main__":
     # import sys
@@ -350,30 +477,37 @@ if __name__ == "__main__":
     else:
         load_slices_data(SLICES_DATA_FILE)
 
-    case_numbers = len(slices_data_table)
 
-    for key in slices_data_table.keys():
-        sum_all_samples += slices_data_table.get(key)
+    slices_sorted_by_value = sorted(slices_data_table.items(),
+                                    key=lambda d: d[1],
+                                    reverse=True)
 
+    case_numbers = len(slices_sorted_by_value)
+    sum_all_samples = sum_segment(0, case_numbers-1, slices_sorted_by_value)
     average_samples = sum_all_samples / DOCDORS
+
+    dispatched_table = strategy3(slices_sorted_by_value)
+
+    print_result(dispatched_table, average_samples)
+
+    # print(dispatched_table)
+
     # print(slices_data_table)
     # dispatch_demo_test(slices_data_table)
     # dispatcher(slices_data_table)
 
-    min_deviation = 1000000000
-    min_dispatched_table = []
+    # min_deviation = 1000000000
+    # min_dispatched_table = []
 
-    for i in range(1, 20):
-        fluctuation_range = i
-        d, t = dispatcher_simple(slices_data_table)
-        print("fluctuation_range: ", fluctuation_range)
-        print("deviation: ", d)
-        print("------------------")
-        if d < min_deviation:
-            min_deviation = d
-            min_dispatched_table = t
+    # for i in range(1, 20):
+    #    fluctuation_range = i
+    #    d, t = dispatcher_simple(slices_data_table)
+    #    print("fluctuation_range: ", fluctuation_range)
+    #    print("deviation: ", d)
+    #    print("------------------")
+    #    if d < min_deviation:
+    #        min_deviation = d
+    #        min_dispatched_table = t
 
-    for item in min_dispatched_table:
-        print([item[0], item[1]], item[2])
-    print(min_deviation)
-
+    # for item in min_dispatched_table:
+    #    k = item[2] - average_samples
