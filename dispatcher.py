@@ -3,7 +3,7 @@
 #
 # Slices Dispatcher
 #
-# Version: 1.1
+# Version: 1.1.1
 #
 # Changelog:
 #   v1.0: Strategy1 domo1
@@ -13,7 +13,7 @@
 #         Strategy3
 #         Strategy4
 #
-#
+#   v1.1.1 : Fix bug
 #
 # Author: Rock <orchidrock@126.com>
 # Date: 2020.7.12
@@ -86,9 +86,9 @@ def load_slices_data(filename):
     except FileNotFoundError as e:
         raise e
 
-    for key in tags.keys():
-        tag = tags[key]
-        slices_data_table[key] = tag[0]
+    # for key in tags.keys():
+    #    tag = tags[key]
+    #    slices_data_table[key] = tag[0]
 
     return slices_data_table, tags
 
@@ -130,6 +130,14 @@ def sum_segment(start, end, slices_data_table_sorted):
     for i in range(start, end+1):
         s += slices_data_table_sorted[i][1]
 
+    return s
+
+
+def sum_tags(tags):
+    s = 0
+    for key in tags.keys():
+        tag = tags.get(key)
+        s += tag[0]
     return s
 
 
@@ -321,14 +329,21 @@ def strategy1(slices_sorted_by_key, case_numbers, average_samples):
     dt, dev = search_by_dfs(dfs_table, dispatched_table_copyed,
                             average_samples, 0)
 
+    # print('dt: ', dt)
     dispatched_table = []
 
     for group in dt:
         key_range = group[0]
         group_sum = group[1]
-        dispatched_table.append([[[slices_sorted_by_key[key_range[0]][0],
-                                 slices_sorted_by_key[key_range[1]][0]]],
-                                group_sum])
+        g = []
+        for i in range(key_range[0], key_range[1]+1):
+            item = slices_sorted_by_key[i]
+            g.append(item[0])
+        dispatched_table.append([g, group_sum])
+
+        # dispatched_table.append([[[slices_sorted_by_key[key_range[0]][0],
+        #                          slices_sorted_by_key[key_range[1]][0]]],
+        #                         group_sum])
 
     # for k in test_dt:
     #    s = sum_segment(k[0][0], k[0][1], slices_sorted_by_key)
@@ -387,6 +402,9 @@ def replace_tag(kl, tags):
 
     for k in kl:
         tag = tags.get(k)
+        if tag:
+            print("tag: ", k, " ", tag[1])
+            result_list += tag[1]
         else:
             result_list.append(k)
 
@@ -547,21 +565,24 @@ def merge_dispatch_table(old, nex):
     return new
 
 
-def strategy3(slices_sorted_by_value):
+def strategy3(slices_sorted_by_value, tags):
 
     dispatched_table = []
 
     while slices_sorted_by_value:
         length = len(slices_sorted_by_value)
-        sum_samples = sum_segment(0, length-1, slices_sorted_by_value)
+        sum_samples = sum_segment(0, length-1, slices_sorted_by_value) + \
+            sum_tags(tags)
         average = get_average_samples(sum_samples)
+        tagged_average = tag_average_samples(average, tags)
+        # print('tagged_average:', tagged_average)
 
         # print("-----------------")
         # print(slices_sorted_by_value)
         # print("AVERAGE: ", average)
 
         dt, slices_sorted_by_value = do_strategy3(slices_sorted_by_value,
-                                                  average)
+                                                  tagged_average)
         # print("dt: ", dt)
         dispatched_table = merge_dispatch_table(dispatched_table, dt)
 
@@ -572,11 +593,21 @@ def strategy3(slices_sorted_by_value):
 # G1: [[q1, q2, ...], sum]
 def print_result(dispatched_table_list, average, tags):
 
+    tag_length = len(tags)
+    tag_keys = list(tags.keys())
     for i in range(len(dispatched_table_list)):
+
         g = dispatched_table_list[i]
-        slice_item_g = key_list_continuous(sorted(replace_tag(g[0], tags)))
-        sum_g = g[1]
-        deviation_g = sum_g - average[i]
+
+        if i < tag_length:
+            tag = tags.get(tag_keys[i])
+            g[0] += tag[1]
+            g[1] += tag[0]
+        else:
+            tag = None
+
+        slice_item_g = key_list_continuous(sorted(g[0]))
+        deviation_g = g[1] - average[i]
 
         print("[", end='')
         for q in slice_item_g:
@@ -589,7 +620,11 @@ def print_result(dispatched_table_list, average, tags):
                 print("{0}, ".format(q), end='')
 
         print("]", end=' ')
-        print("{0} ({1:.2f})".format(sum_g, deviation_g))
+        if tag:
+            print("{0} ({1:.2f}) <{2}>".format(g[1], deviation_g,
+                                               tag_keys[i]))
+        else:
+            print("{0} ({1:.2f})".format(g[1], deviation_g))
 
 
 def get_average_samples(sum_all_samples):
@@ -608,6 +643,17 @@ def get_average_samples(sum_all_samples):
     return average_samples
 
 
+def tag_average_samples(average_samples, tags):
+    tagged_average = copy.deepcopy(average_samples)
+    tag_length = len(tags)
+    tag_values = list(tags.values())
+    for i in range(tag_length):
+        tag = tag_values[i]
+        tagged_average[i] = average_samples[i] - tag[0]
+
+    return tagged_average
+
+
 if __name__ == "__main__":
 
     options = parse_args()  # global variable
@@ -624,12 +670,17 @@ if __name__ == "__main__":
                                   reverse=False)
 
     case_numbers = len(slices_sorted_by_value)
-    sum_all_samples = sum_segment(0, case_numbers-1, slices_sorted_by_value)
+    sum_all_samples = sum_segment(0, case_numbers-1,
+                                  slices_sorted_by_value) + \
+        sum_tags(tags)
     average_samples = get_average_samples(sum_all_samples)
+    tagged_avetage_samples = tag_average_samples(average_samples, tags)
 
     print("Case Numbers: ", case_numbers)
     print("Sum All Samples: ", sum_all_samples)
     print("Average Samples: ", average_samples)
+    # print("Tagged Average Samples: ", tagged_avetage_samples)
+    print("Tags: ", tags)
     print("Doctors: ", options.doctors)
     print("Strategy: ", options.strategy)
     print("Slice File:", options.slice_file)
@@ -638,15 +689,16 @@ if __name__ == "__main__":
     if options.strategy == 1:  # strategy 1:
         dt, dev = strategy1(slices_sorted_by_key,
                             case_numbers,
-                            average_samples)
+                            tagged_avetage_samples)
         print_result(dt, average_samples, tags)
         print(dev)
     elif options.strategy == 2:  # strategy 2:
-        dt = strategy2(slices_sorted_by_key, average_samples)
+        dt = strategy2(slices_sorted_by_key,
+                       tagged_avetage_samples)
         print_result(dt, average_samples, tags)
         print(get_deviation(dt, average_samples))
     elif options.strategy == 3:  # strategy 3:
-        dt = strategy3(slices_sorted_by_value)
+        dt = strategy3(slices_sorted_by_value, tags)
         print_result(dt, average_samples, tags)
         print(get_deviation(dt, average_samples))
     else:
